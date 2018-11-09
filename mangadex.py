@@ -2,8 +2,11 @@
 
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, Optional
+import bs4.element  # type: ignore
+import math
 import requests
+import itertools
 
 
 @dataclass
@@ -15,15 +18,32 @@ class Manga:
     views: int
     follows: int
 
+    def adjusted_rating(self) -> float:
+        # Bravely stolen from https://math.stackexchange.com/a/942965
+        # Considering 7.5 to be an arbitrary "moderate" rating
+        quantity_constant = -7.5 / math.log(0.5)
+        adjusted_rating = (self.rating / 2.) + 5 * (1 - math.e ** ((-1 * self.votes) / quantity_constant))
+        return round(adjusted_rating, 2)
 
-def query_mangadex() -> str:
+    def __str__(self):
+        return self.title
+
+
+def query_mangadex(page: int = 1) -> str:
     # todo genre filters
-    response = requests.get('https://mangadex.org', params={'page': 'search'})
+    response = requests.get(
+        'https://mangadex.org',
+        params={
+            's': '0',
+            'page': 'search',  # page meaning "section of site"
+            'p': str(page)  # page meaning "pagination"
+        }
+    )
     response.raise_for_status()
     return response.text
 
 
-def __parse_manga_from_html(row: str) -> Optional[Manga]:
+def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
     title = row.find('a', class_='manga_title').text
     if not title:
         return None
@@ -39,8 +59,7 @@ def __parse_manga_from_html(row: str) -> Optional[Manga]:
         return int(s.strip().replace(',', ''))
 
     # Vote count is in format "n Votes"
-    votes = int(rating_span['title'].split(' ')[0])
-
+    votes = parse_int(rating_span['title'].split(' ')[0])
     follows = parse_int(row.find('span', title='Follows').next_element)
     views = parse_int(row.find('span', title='Views').next_element)
 
@@ -55,16 +74,23 @@ def __parse_manga_from_html(row: str) -> Optional[Manga]:
 
 
 def main():
-    mangadex_html = query_mangadex()
-    mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
-    rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
-    # Each row div contains two row divs.  The first div contains the original
-    # language icon, title, author and follow button. The second contain the
-    # stats.
-
     # Awkwardly, the plural of manga is manga...
-    collection: List[Manga] = [__parse_manga_from_html(r) for r in rows]
-    print(collection)
+    collection: Dict[str, Manga] = {}
+
+    for page in range(0, 15):
+        mangadex_html = query_mangadex(page=page)
+        mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
+        rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
+        for row in rows:
+            manga = __parse_manga_from_html(row)
+            if manga:
+                collection[manga.path] = manga
+
+    top_manga = reversed(sorted(collection.values(), key=lambda m: m.adjusted_rating()))
+
+    for i in range(0, 100):
+        manga = next(top_manga)
+        print(f'{i:>3}. {manga.name:48} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
 
 
 if __name__ == '__main__':
