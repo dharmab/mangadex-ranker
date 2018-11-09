@@ -2,11 +2,77 @@
 
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 import bs4.element  # type: ignore
 import math
 import requests
-import itertools
+import argparse
+import enum
+
+
+class Genre(enum.Enum):
+    FOUR_KOMA = 1
+    ACTION = 2
+    ADVENTURE = 3
+    AWARD_WINNING = 4
+    COMEDY = 5
+    COOKING = 6
+    DOUJINSHI = 7
+    DRAMA = 8
+    ECCHI = 9
+    FANTASY = 10
+    GENDER_BENDER = 11
+    HAREM = 12
+    HISTORICAL = 13
+    HORROR = 14
+    JOSEI = 15
+    MARTIAL_ARTS = 16
+    MECHA = 17
+    MEDICAL = 18
+    MUSIC = 19
+    MYSTERY = 20
+    ONESHOT = 21
+    PSYCHOLOGICAL = 22
+    ROMANCE = 23
+    SCHOOL_LIFE = 24
+    SCI_FI = 25
+    SEINEN = 26
+    SHOUJO = 27
+    SHOUJO_AI = 28
+    SHOUNEN = 29
+    SHOUNEN_AI = 30
+    SLICE_OF_LIFE = 31
+    SMUT = 32
+    SPORTS = 33
+    SUPERNATURAL = 34
+    TRAGEDY = 35
+    WEBTOON = 36
+    YAOI = 37
+    YURI = 38
+    # skipping "no chapters"
+    GAME = 40
+    ISEKAI = 41
+
+    @staticmethod
+    def from_str(s: str):
+        s = s.replace(' ', '_').upper()
+        try:
+            return Genre[s]
+        except ValueError:
+            return {
+                '4-KOMA': Genre.FOUR_KOMA,
+                'SCI-FI': Genre.SCI_FI
+            }[s]
+
+    @staticmethod
+    def choices() -> List[str]:
+        names = [n.replace('_', ' ').lower() for n in Genre.__members__.keys()]
+        for i, name in enumerate(names):
+            if name == 'four koma':
+                names[i] = '4-koma'
+            if name == 'sci fi':
+                names[i] = 'sci-fi'
+        return names
 
 
 @dataclass
@@ -29,15 +95,33 @@ class Manga:
         return self.title
 
 
-def query_mangadex(page: int = 1) -> str:
-    # todo genre filters
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description='Rank manga from MangaDex')
+    parser.add_argument(
+        '-m', '--match-genres',
+        nargs='+',
+        required=False,
+        choices=Genre.choices(),
+        metavar='GENRE',
+        help='List of genres which manga must match. Omit to match any genres'
+    )
+
+    return parser.parse_args()
+
+
+def query_mangadex(page: int = 1, match_genres: Optional[List[Genre]] = None) -> str:
+    params = {
+        's': '0',
+        'page': 'search',  # page meaning "section of site"
+        'p': str(page)  # page meaning "pagination"
+    }
+
+    if match_genres:
+        params['genres_inc'] = ','.join(sorted([str(e.value) for e in match_genres]))
+
     response = requests.get(
         'https://mangadex.org',
-        params={
-            's': '0',
-            'page': 'search',  # page meaning "section of site"
-            'p': str(page)  # page meaning "pagination"
-        }
+        params=params
     )
     response.raise_for_status()
     return response.text
@@ -74,11 +158,18 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
 
 
 def main():
+    options = parse_args()
+
     # Awkwardly, the plural of manga is manga...
     collection: Dict[str, Manga] = {}
 
+    if options.match_genres:
+        match_genres = [Genre.from_str(s) for s in options.match_genres]
+    else:
+        match_genres = None
+
     for page in range(0, 15):
-        mangadex_html = query_mangadex(page=page)
+        mangadex_html = query_mangadex(page=page, match_genres=match_genres)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
         for row in rows:
@@ -90,7 +181,7 @@ def main():
 
     for i in range(0, 100):
         manga = next(top_manga)
-        print(f'{i:>3}. {manga.name:48} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
+        print(f'{i:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
 
 
 if __name__ == '__main__':
