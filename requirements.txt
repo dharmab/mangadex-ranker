@@ -1,4 +1,5 @@
-beautifulsoup4
-requests
-flake8
-mypy
+beautifulsoup4==4.6.3
+flake8==3.6.0
+jedi==0.13.1
+mypy==0.641
+requests==2.20.0
