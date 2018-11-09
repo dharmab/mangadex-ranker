@@ -179,9 +179,13 @@ def main():
 
     top_manga = reversed(sorted(collection.values(), key=lambda m: m.adjusted_rating()))
 
-    for i in range(0, 100):
+    i = 1
+    while True:
         manga = next(top_manga)
+        if manga.adjusted_rating() < 9.00:
+            break
         print(f'{i:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
+        i += 1
 
 
 if __name__ == '__main__':
