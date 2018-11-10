@@ -105,6 +105,12 @@ def parse_args() -> argparse.Namespace:
         metavar='GENRE',
         help='List of genres which manga must match. Omit to match any genres'
     )
+    parser.add_argument(
+        '-p', '--pages',
+        default='10',
+        required=False,
+        help='Number of search result pages to parse'
+    )
 
     return parser.parse_args()
 
@@ -168,7 +174,8 @@ def main():
     else:
         match_genres = None
 
-    for page in range(0, 15):
+    # Unfortunately queries cannot be multithreaded due to rate limiting
+    for page in range(0, int(options.pages)):
         mangadex_html = query_mangadex(page=page, match_genres=match_genres)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
