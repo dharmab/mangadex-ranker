@@ -111,6 +111,12 @@ def parse_args() -> argparse.Namespace:
         required=False,
         help='Number of search result pages to parse'
     )
+    parser.add_argument(
+        '--minimum-rating',
+        default='8.00',
+        required=False,
+        help='Minimum adjusted rating. Manga below this rating are not listed'
+    )
 
     return parser.parse_args()
 
@@ -189,7 +195,7 @@ def main():
     i = 1
     while True:
         manga = next(top_manga)
-        if manga.adjusted_rating() < 9.00:
+        if manga.adjusted_rating() < float(options.minimum_rating):
             break
         print(f'{i:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
         i += 1
