@@ -192,9 +192,7 @@ def main():
 
     top_manga = reversed(sorted(collection.values(), key=lambda m: m.adjusted_rating()))
 
-    i = 1
-    while True:
-        manga = next(top_manga)
+    for i, manga in enumerate(top_manga):
         if manga.adjusted_rating() < float(options.minimum_rating):
             break
         print(f'{i:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
