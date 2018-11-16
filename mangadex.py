@@ -10,6 +10,7 @@ import enum
 import math
 import os
 import requests
+import sys
 
 
 class Genre(enum.Enum):
@@ -227,7 +228,10 @@ def main():
     for i, manga in enumerate(top_manga):
         if manga.adjusted_rating() < float(options.minimum_rating):
             break
-        print(f'{i:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
+        try:
+            print(f'{i+1:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
+        except BrokenPipeError:
+            sys.exit(0)
         i += 1
 
 
