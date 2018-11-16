@@ -77,6 +77,21 @@ class Genre(enum.Enum):
         return names
 
 
+class Sorting(enum.Enum):
+    TITLE_ASC = 2
+    TITLE_DESC = 3
+    COMMENTS_ASC = 4
+    COMMENTS_DESC = 5
+    RATING_ASC = 6
+    RATING_DESC = 7
+    VIEWS_ASC = 8
+    VIEWS_DESC = 9
+    FOLLLOWS_ASC = 10
+    FOLLLOWS_DESC = 11
+    LAST_UPDATE_ASC = 12
+    LAST_UPDATE_DESC = 13
+
+
 @dataclass
 class Manga:
     path: str
@@ -124,8 +139,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def query_mangadex(*, session: requests.Session, page: int = 1, match_genres: Optional[List[Genre]] = None) -> str:
-    params = {
-        's': '0',
+    params: Dict[str, str] = {
+        's': str(Sorting.VIEWS_DESC),  # sort method
         'page': 'search',  # page meaning "section of site"
         'p': str(page)  # page meaning "pagination"
     }
