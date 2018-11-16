@@ -13,3 +13,5 @@ Example: Rank the top fantasy slice of life manga:
 ```bash
 ./mangadex.py --match-genres 'fantasy' 'slice of life'
 ```
+
+If you want to search using your account preferences, set the `MANGADEX_USERNAME` and `MANGADEX_PASSWORD` environment variables.

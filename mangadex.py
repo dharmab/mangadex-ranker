@@ -3,11 +3,13 @@
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
 from typing import Dict, List, Optional
-import bs4.element  # type: ignore
-import math
-import requests
+from urllib.parse import urljoin
 import argparse
+import bs4.element  # type: ignore
 import enum
+import math
+import os
+import requests
 
 
 class Genre(enum.Enum):
@@ -121,7 +123,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def query_mangadex(page: int = 1, match_genres: Optional[List[Genre]] = None) -> str:
+def query_mangadex(*, session: requests.Session, page: int = 1, match_genres: Optional[List[Genre]] = None) -> str:
     params = {
         's': '0',
         'page': 'search',  # page meaning "section of site"
@@ -131,7 +133,7 @@ def query_mangadex(page: int = 1, match_genres: Optional[List[Genre]] = None) ->
     if match_genres:
         params['genres_inc'] = ','.join(sorted([str(e.value) for e in match_genres]))
 
-    response = requests.get(
+    response = session.get(
         'https://mangadex.org',
         params=params
     )
@@ -180,9 +182,24 @@ def main():
     else:
         match_genres = None
 
+    session = requests.Session()
+    username = os.getenv('MANGADEX_USERNAME', None)
+    password = os.getenv('MANGADEX_PASSWORD', None)
+
+    if username and password:
+        # cookie is implicitly saved in session
+        session.post(
+            urljoin('https://mangadex.org/ajax/actions.ajax.php'),
+            params={'function': 'login'},
+            payload={
+                'login_username': username,
+                'login_password': password
+            }
+        )
+
     # Unfortunately queries cannot be multithreaded due to rate limiting
     for page in range(0, int(options.pages)):
-        mangadex_html = query_mangadex(page=page, match_genres=match_genres)
+        mangadex_html = query_mangadex(session=session, page=page, match_genres=match_genres)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
         for row in rows:
