@@ -13,63 +13,52 @@ import requests
 import sys
 
 
-class Genre(enum.Enum):
-    FOUR_KOMA = 1
+class Tag(enum.Enum):
+    # TODO Dynamic generation from search page
     ACTION = 2
     ADVENTURE = 3
-    AWARD_WINNING = 4
     COMEDY = 5
-    COOKING = 6
-    DOUJINSHI = 7
     DRAMA = 8
-    ECCHI = 9
     FANTASY = 10
-    GENDER_BENDER = 11
     HAREM = 12
     HISTORICAL = 13
     HORROR = 14
-    JOSEI = 15
-    MARTIAL_ARTS = 16
     MECHA = 17
     MEDICAL = 18
     MUSIC = 19
     MYSTERY = 20
-    ONESHOT = 21
     PSYCHOLOGICAL = 22
     ROMANCE = 23
-    SCHOOL_LIFE = 24
     SCI_FI = 25
-    SEINEN = 26
-    SHOUJO = 27
     SHOUJO_AI = 28
-    SHOUNEN = 29
     SHOUNEN_AI = 30
     SLICE_OF_LIFE = 31
-    SMUT = 32
     SPORTS = 33
-    SUPERNATURAL = 34
     TRAGEDY = 35
-    WEBTOON = 36
     YAOI = 37
     YURI = 38
-    # skipping "no chapters"
-    GAME = 40
     ISEKAI = 41
+    CRIME = 51
+    MAGICAL_GIRLS = 52
+    PHILOSOPHICAL = 53
+    SUPERHERO = 54
+    THRILLER = 55
+    WUXIA = 56
 
     @staticmethod
     def from_str(s: str):
         s = s.replace(' ', '_').upper()
         try:
-            return Genre[s]
+            return Tag[s]
         except ValueError:
             return {
-                '4-KOMA': Genre.FOUR_KOMA,
-                'SCI-FI': Genre.SCI_FI
+                'SCI-FI': Tag.SCI_FI,
+                'MAGICAL GIRLS': Tag.MAGICAL_GIRLS
             }[s]
 
     @staticmethod
     def choices() -> List[str]:
-        names = [n.replace('_', ' ').lower() for n in Genre.__members__.keys()]
+        names = [n.replace('_', ' ').lower() for n in Tag.__members__.keys()]
         for i, name in enumerate(names):
             if name == 'four koma':
                 names[i] = '4-koma'
@@ -116,12 +105,12 @@ class Manga:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Rank manga from MangaDex')
     parser.add_argument(
-        '-m', '--match-genres',
+        '-m', '--match-tags',
         nargs='+',
         required=False,
-        choices=Genre.choices(),
-        metavar='GENRE',
-        help='List of genres which manga must match. Omit to match any genres'
+        choices=Tag.choices(),
+        metavar='TAG',
+        help='List of tag which manga must match. Omit to match any tags'
     )
     parser.add_argument(
         '-p', '--pages',
@@ -139,15 +128,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def query_mangadex(*, session: requests.Session, page: int = 1, match_genres: Optional[List[Genre]] = None) -> str:
+def query_mangadex(*, session: requests.Session, page: int = 1, match_tags: Optional[List[Tag]] = None) -> str:
     params: Dict[str, str] = {
         's': str(Sorting.VIEWS_DESC),  # sort method
         'page': 'search',  # page meaning "section of site"
         'p': str(page)  # page meaning "pagination"
     }
 
-    if match_genres:
-        params['genres_inc'] = ','.join(sorted([str(e.value) for e in match_genres]))
+    if match_tags:
+        params['tags_inc'] = ','.join(sorted([str(e.value) for e in match_tags]))
 
     response = session.get(
         'https://mangadex.org',
@@ -193,10 +182,10 @@ def main():
     # Awkwardly, the plural of manga is manga...
     collection: Dict[str, Manga] = {}
 
-    if options.match_genres:
-        match_genres = [Genre.from_str(s) for s in options.match_genres]
+    if options.match_tags:
+        match_tags = [Tag.from_str(s) for s in options.match_tags]
     else:
-        match_genres = None
+        match_tags = None
 
     session = requests.Session()
     username = os.getenv('MANGADEX_USERNAME', None)
@@ -215,7 +204,7 @@ def main():
 
     # Unfortunately queries cannot be multithreaded due to rate limiting
     for page in range(0, int(options.pages)):
-        mangadex_html = query_mangadex(session=session, page=page, match_genres=match_genres)
+        mangadex_html = query_mangadex(session=session, page=page, match_tags=match_tags)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
         for row in rows:
