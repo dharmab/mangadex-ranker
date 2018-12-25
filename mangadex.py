@@ -209,12 +209,14 @@ def main():
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
         for row in rows:
             manga = __parse_manga_from_html(row)
-            if manga:
+            # Exclude https://mangadex.org/title/47/test
+            if manga and manga.name != 'Test':
                 collection[manga.path] = manga
 
     top_manga = reversed(sorted(collection.values(), key=lambda m: m.adjusted_rating()))
 
     for i, manga in enumerate(top_manga):
+        # Stop when first manga below rating threshold is found
         if manga.adjusted_rating() < float(options.minimum_rating):
             break
         try:
