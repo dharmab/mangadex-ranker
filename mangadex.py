@@ -41,7 +41,8 @@ class Manga:
 
     def adjusted_rating(self) -> float:
         # Bravely stolen from https://math.stackexchange.com/a/942965
-        # Considering 7.5 to be an arbitrary "moderate" rating
+        # 7.5 chosen because it is the median rating of relatively SFW data
+        # queried in December 2018. (Mean is pretty close at 7.22)
         quantity_constant = -7.5 / math.log(0.5)
         adjusted_rating = (self.rating / 2.) + 5 * (1 - math.e ** ((-1 * self.votes) / quantity_constant))
         return round(adjusted_rating, 2)
@@ -171,6 +172,14 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
     title = row.find('a', class_='manga_title').text
     if not title:
         return None
+
+    # Clean up data
+    for s in ['[Official Colored]', '(Anthology)', '(Doujinshi)', '(Web Comic)', '(Webcomic)']:
+        if s in title:
+            title = title.rstrip(s)
+        if s.lower() in title:
+            title = title.rstrip(s.lower())
+    title = title.strip()
 
     path = row.find('a')['href']
 
