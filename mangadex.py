@@ -215,6 +215,11 @@ def get_manga(*, session: requests.Session, number_of_pages: int, included_tags:
         mangadex_html = __search_mangadex(session=session, page=page, included_tags=included_tags, excluded_tags=excluded_tags)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
+
+        # Stop searching if no further results are found
+        if not rows:
+            break
+
         for row in rows:
             manga = __parse_manga_from_html(row)
             # Exclude https://mangadex.org/title/47/test
