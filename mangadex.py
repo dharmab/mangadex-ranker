@@ -2,7 +2,7 @@
 
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Set, Optional
 from urllib.parse import urljoin
 import argparse
 import bs4.element  # type: ignore
@@ -11,60 +11,6 @@ import math
 import os
 import requests
 import sys
-
-
-class Tag(enum.Enum):
-    # TODO Dynamic generation from search page
-    ACTION = 2
-    ADVENTURE = 3
-    COMEDY = 5
-    DRAMA = 8
-    FANTASY = 10
-    HAREM = 12
-    HISTORICAL = 13
-    HORROR = 14
-    MECHA = 17
-    MEDICAL = 18
-    MUSIC = 19
-    MYSTERY = 20
-    PSYCHOLOGICAL = 22
-    ROMANCE = 23
-    SCI_FI = 25
-    SHOUJO_AI = 28
-    SHOUNEN_AI = 30
-    SLICE_OF_LIFE = 31
-    SPORTS = 33
-    TRAGEDY = 35
-    YAOI = 37
-    YURI = 38
-    ISEKAI = 41
-    CRIME = 51
-    MAGICAL_GIRLS = 52
-    PHILOSOPHICAL = 53
-    SUPERHERO = 54
-    THRILLER = 55
-    WUXIA = 56
-
-    @staticmethod
-    def from_str(s: str):
-        s = s.replace(' ', '_').upper()
-        try:
-            return Tag[s]
-        except ValueError:
-            return {
-                'SCI-FI': Tag.SCI_FI,
-                'MAGICAL GIRLS': Tag.MAGICAL_GIRLS
-            }[s]
-
-    @staticmethod
-    def choices() -> List[str]:
-        names = [n.replace('_', ' ').lower() for n in Tag.__members__.keys()]
-        for i, name in enumerate(names):
-            if name == 'four koma':
-                names[i] = '4-koma'
-            if name == 'sci fi':
-                names[i] = 'sci-fi'
-        return names
 
 
 class Sorting(enum.Enum):
@@ -102,13 +48,13 @@ class Manga:
         return self.title
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(tag_names: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Rank manga from MangaDex')
     parser.add_argument(
         '-m', '--match-tags',
         nargs='+',
         required=False,
-        choices=Tag.choices(),
+        choices=tag_names,
         metavar='TAG',
         help='List of tag which manga must match. Omit to match any tags'
     )
@@ -128,20 +74,49 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def query_mangadex(*, session: requests.Session, page: int = 1, match_tags: Optional[List[Tag]] = None) -> str:
+def mangadex_search_url() -> str:
+    return 'https://mangadex.org/search'
+
+
+def get_mangadex_tags(*, session: requests.Session) -> Dict[str, str]:
+    """
+    Dynamically build the list of MangaDex tags.
+
+    :param session: A HTTP session for MangaDex. May be authenticated or unauthenticated.
+    :return: A dictionary where keys are lowercase tag names and values are numeric tags.
+    """
+    response = session.get(mangadex_search_url())
+    response.raise_for_status()
+    html = response.text
+    soup = BeautifulSoup(html, 'html.parser')
+
+    tags: Dict[str, str] = {}
+    option_groups = soup.body.find('div', class_='genres-filter-wrapper').find_all('optgroup')
+    for group in option_groups:
+        options = group.find_all('option')
+        for option in options:
+            tags[option.string.lower()] = option['value']
+    return tags
+
+
+def search_mangadex(*, session: requests.Session, page: int = 1, match_tags: Optional[Set[str]] = None) -> str:
+    """
+    Search MangaDex and return the HTML response from the search page.
+
+    :param session: A HTTP session for MangaDex. May be authenticated or unauthenticated.
+    :param page: The page of search results to query.
+    :param match_tags: The numeric strings of tags to match on (include). If
+    not specified, all tags will be included
+    """
     params: Dict[str, str] = {
         's': str(Sorting.VIEWS_DESC),  # sort method
-        'page': 'search',  # page meaning "section of site"
         'p': str(page)  # page meaning "pagination"
     }
 
     if match_tags:
-        params['tags_inc'] = ','.join(sorted([str(e.value) for e in match_tags]))
+        params['tags_inc'] = ','.join(sorted([str(t) for t in list(match_tags)]))
 
-    response = session.get(
-        'https://mangadex.org',
-        params=params
-    )
+    response = session.get(mangadex_search_url(), params=params)
     response.raise_for_status()
     return response.text
 
@@ -177,16 +152,7 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
 
 
 def main():
-    options = parse_args()
-
-    # Awkwardly, the plural of manga is manga...
-    collection: Dict[str, Manga] = {}
-
-    if options.match_tags:
-        match_tags = [Tag.from_str(s) for s in options.match_tags]
-    else:
-        match_tags = None
-
+    # Start a MangaDex HTTP session
     session = requests.Session()
     username = os.getenv('MANGADEX_USERNAME', None)
     password = os.getenv('MANGADEX_PASSWORD', None)
@@ -202,9 +168,20 @@ def main():
             }
         )
 
+    # Dynamically query available tags
+    tags = get_mangadex_tags(session=session)
+
+    # Parse CLI options
+    options = parse_args(tag_names=tags.keys())
+    match_tags = [tags[s.lower()] for s in options.match_tags] if options.match_tags else None
+
+    # Query for Manga metadata
+    # Awkwardly, the plural of manga is manga...
+    collection: Dict[str, Manga] = {}
+
     # Unfortunately queries cannot be multithreaded due to rate limiting
     for page in range(0, int(options.pages)):
-        mangadex_html = query_mangadex(session=session, page=page, match_tags=match_tags)
+        mangadex_html = search_mangadex(session=session, page=page, match_tags=match_tags)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
         for row in rows:
