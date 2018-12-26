@@ -1,7 +1,5 @@
 PyYAML==3.13
 beautifulsoup4==4.6.3
 flake8==3.6.0
-jedi==0.13.1
-mypy==0.641
-pyyaml
-requests==2.20.0
+mypy==0.650
+requests==2.21.0
