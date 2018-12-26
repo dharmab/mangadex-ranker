@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Set, ValuesView, Optional
 import argparse
 import bs4.element  # type: ignore
+import csv
 import enum
 import json
 import math
@@ -105,7 +106,7 @@ def parse_args(tag_names: List[str]) -> argparse.Namespace:
         '-f', '--format',
         default='wide',
         required=False,
-        choices=['simple', 'wide', 'json', 'yaml'],
+        choices=['simple', 'wide', 'json', 'yaml', 'csv'],
         help='Output format'
     )
 
@@ -278,6 +279,11 @@ def main():
         print(json.dumps([m.to_dict() for m in ranked_manga]))
     elif options.format == 'yaml':
         print(yaml.dump([m.to_dict() for m in ranked_manga]))
+    elif options.format == 'csv':
+        writer = csv.DictWriter(sys.stdout, fieldnames=['name', 'url', 'rating', 'adjusted_rating', 'votes', 'views', 'follows'])
+        writer.writeheader()
+        for m in ranked_manga:
+            writer.writerow(m.to_dict())
 
 
 if __name__ == '__main__':
