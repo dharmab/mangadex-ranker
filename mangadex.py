@@ -51,24 +51,32 @@ class Manga:
 def parse_args(tag_names: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Rank manga from MangaDex')
     parser.add_argument(
+        '-l', '--list-tags',
+        action='store_true',
+        default=False,
+        help='Print list of available tags and exit.'
+    )
+    parser.add_argument(
         '-m', '--match-tags',
         nargs='+',
         required=False,
         choices=tag_names,
         metavar='TAG',
-        help='List of tag which manga must match. Omit to match any tags'
+        help='List of tags which manga must match. Omit to match any tags'
     )
     parser.add_argument(
         '-p', '--pages',
         default='10',
         required=False,
+        metavar='N',
         help='Number of search result pages to parse'
     )
     parser.add_argument(
         '--minimum-rating',
         default='8.00',
         required=False,
-        help='Minimum adjusted rating. Manga below this rating are not listed'
+        metavar='RATING',
+        help='Minimum adjusted rating (0.0 to 10.0). Manga below this rating are not listed'
     )
 
     return parser.parse_args()
@@ -174,6 +182,11 @@ def main():
     # Parse CLI options
     options = parse_args(tag_names=tags.keys())
     match_tags = [tags[s.lower()] for s in options.match_tags] if options.match_tags else None
+
+    if options.list_tags:
+        for tag in sorted(tags.keys()):
+            print(tag)
+        sys.exit(0)
 
     # Query for Manga metadata
     # Awkwardly, the plural of manga is manga...
