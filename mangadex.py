@@ -221,10 +221,7 @@ def main():
         # Stop when a manga below minimum rating threshold is encounted
         if manga.adjusted_rating() < float(options.minimum_rating):
             break
-        try:
-            print(f'{i+1:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
-        except BrokenPipeError:
-            sys.exit(0)
+        print(f'{i+1:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
         i += 1
 
 
