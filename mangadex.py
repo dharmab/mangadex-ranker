@@ -106,8 +106,10 @@ def get_mangadex_tags(*, session: requests.Session) -> Dict[str, str]:
     """
     Dynamically build the list of MangaDex tags.
 
-    :param session: A HTTP session for MangaDex. May be authenticated or unauthenticated.
-    :return: A dictionary where keys are lowercase tag names and values are numeric tags.
+    :param session: A HTTP session for MangaDex. May be authenticated or
+    unauthenticated.
+    :return: A dictionary where keys are lowercase tag names
+    and values are numeric tags.
     """
     response = session.get(__mangadex_search_url())
     response.raise_for_status()
@@ -127,16 +129,18 @@ def __search_mangadex(*, session: requests.Session, page: int = 1, included_tags
     """
     Search MangaDex and return the HTML response from the search page.
 
-    :param session: A HTTP session for MangaDex. May be authenticated or unauthenticated.
+    :param session: A HTTP session for MangaDex. May be authenticated or
+    unauthenticated.
     :param page: The page of search results to query.
     :param included_tags: The numeric values of tags to match on (include). If
     None, all tags will be included
     :param excluded_tags: The numeric values of tags to exclude. If None, no
     tags will be excluded
+    :return: The HTML body of the MangaDex search page.
     """
     params: Dict[str, str] = {
-        's': '7',  # sort method; 7 is the magic number for sorting by views descending
-        'p': str(page)  # page meaning "pagination"
+        's': '7',  # sort method; 7 sorts by views descending
+        'p': str(page)  # pagination
     }
 
     def format_tag_list(c: Set[str]) -> str:
@@ -153,6 +157,9 @@ def __search_mangadex(*, session: requests.Session, page: int = 1, included_tags
 
 
 def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
+    """
+    Helper function for parsing manga metadata from MangaDex HTML results.
+    """
     title = row.find('a', class_='manga_title').text
     if not title:
         return None
@@ -191,12 +198,30 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
 
 
 def get_manga(*, session: requests.Session, number_of_pages: int, included_tags: Optional[Set[str]] = None, excluded_tags: Optional[Set[str]] = None) -> Iterator[Manga]:
+    """
+    Query manga metadata from MangaDex.
+
+    :param session: A HTTP session for MangaDex. May be authenticated or
+    unauthenticated.
+    :param number_of_pages: Number of pages of search results to return.
+    :param included_tags: The numeric values of tags to match on (include). If
+    None, all tags will be included
+    :param excluded_tags: The numeric values of tags to exclude. If None, no
+    tags will be excluded
+
+    :return: Iterator of Manga results.
+    """
     # Awkwardly, the plural of manga is manga...
     collection: Dict[str, Manga] = {}
 
     # Unfortunately queries cannot be multithreaded due to rate limiting
     for page in range(0, number_of_pages):
-        mangadex_html = __search_mangadex(session=session, page=page, included_tags=included_tags, excluded_tags=excluded_tags)
+        mangadex_html = __search_mangadex(
+            session=session,
+            page=page,
+            included_tags=included_tags,
+            excluded_tags=excluded_tags
+        )
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
 
@@ -214,6 +239,15 @@ def get_manga(*, session: requests.Session, number_of_pages: int, included_tags:
 
 
 def login(username: Optional[str] = None, password: Optional[str] = None) -> requests.Session:
+    """
+    Start an HTTP session for MangaDex. Username and password are optional and
+    only needed if the user wants to use their account settings to customize
+    their search results.
+
+    :param username: MangaDex username
+    :param password: MangaDex password
+    :return: An HTTP session which may or may not be authenticated.
+    """
     session = requests.Session()
     if username and password:
         # cookie is implicitly saved in session
@@ -252,7 +286,12 @@ def main() -> None:
         sys.exit(0)
 
     # Query for Manga metadata
-    queried_manga = get_manga(session=session, number_of_pages=int(options.pages), included_tags=included_tags, excluded_tags=excluded_tags)
+    queried_manga = get_manga(
+        session=session,
+        number_of_pages=int(options.pages),
+        included_tags=included_tags,
+        excluded_tags=excluded_tags
+    )
 
     # Rank manga by rating descending
     ranked_manga = filter(
@@ -278,7 +317,18 @@ def main() -> None:
     elif options.format == 'yaml':
         print(yaml.dump([m.to_dict() for m in ranked_manga]))
     elif options.format == 'csv':
-        writer = csv.DictWriter(sys.stdout, fieldnames=['name', 'url', 'rating', 'adjusted_rating', 'votes', 'views', 'follows'])
+        writer = csv.DictWriter(
+            sys.stdout,
+            fieldnames=[
+                'name',
+                'url',
+                'rating',
+                'adjusted_rating',
+                'votes',
+                'views',
+                'follows'
+            ]
+        )
         writer.writeheader()
         for m in ranked_manga:
             writer.writerow(m.to_dict())
