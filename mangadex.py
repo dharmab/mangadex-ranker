@@ -64,6 +64,14 @@ def parse_args(tag_names: List[str]) -> argparse.Namespace:
         help='List of tags which manga must match. Omit to match any tags'
     )
     parser.add_argument(
+        '-x', '--exclude-tags',
+        nargs='+',
+        required=False,
+        choices=tag_names,
+        metavar='TAG',
+        help='List of tags which manga must not match. Omit to disable tag exclusion'
+    )
+    parser.add_argument(
         '-p', '--pages',
         default='10',
         required=False,
@@ -106,22 +114,29 @@ def get_mangadex_tags(*, session: requests.Session) -> Dict[str, str]:
     return tags
 
 
-def __search_mangadex(*, session: requests.Session, page: int = 1, match_tags: Optional[Set[str]] = None) -> str:
+def __search_mangadex(*, session: requests.Session, page: int = 1, included_tags: Optional[Set[str]] = None, excluded_tags: Optional[Set[str]] = None) -> str:
     """
     Search MangaDex and return the HTML response from the search page.
 
     :param session: A HTTP session for MangaDex. May be authenticated or unauthenticated.
     :param page: The page of search results to query.
-    :param match_tags: The numeric strings of tags to match on (include). If
-    not specified, all tags will be included
+    :param included_tags: The numeric values of tags to match on (include). If
+    None, all tags will be included
+    :param excluded_tags: The numeric values of tags to exclude. If None, no
+    tags will be excluded
     """
     params: Dict[str, str] = {
         's': str(Sorting.VIEWS_DESC),  # sort method
         'p': str(page)  # page meaning "pagination"
     }
 
-    if match_tags:
-        params['tags_inc'] = ','.join(sorted([str(t) for t in list(match_tags)]))
+    def format_tag_list(c):
+        return ','.join(sorted(c))
+
+    if included_tags:
+        params['tags_inc'] = format_tag_list(included_tags)
+    if excluded_tags:
+        params['tags_exc'] = format_tag_list(excluded_tags)
 
     response = session.get(__mangadex_search_url(), params=params)
     response.raise_for_status()
@@ -158,13 +173,13 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
     )
 
 
-def get_manga(*, session, number_of_pages: int, match_tags: Set[str] = None) -> ValuesView[Manga]:
+def get_manga(*, session, number_of_pages: int, included_tags: Set[str] = None, excluded_tags: Set[str] = None) -> ValuesView[Manga]:
     # Awkwardly, the plural of manga is manga...
     collection: Dict[str, Manga] = {}
 
     # Unfortunately queries cannot be multithreaded due to rate limiting
     for page in range(0, number_of_pages):
-        mangadex_html = __search_mangadex(session=session, page=page, match_tags=match_tags)
+        mangadex_html = __search_mangadex(session=session, page=page, included_tags=included_tags, excluded_tags=excluded_tags)
         mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
         rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
         for row in rows:
@@ -203,7 +218,11 @@ def main():
 
     # Parse CLI options
     options = parse_args(tag_names=tags.keys())
-    match_tags = [tags[s.lower()] for s in options.match_tags] if options.match_tags else None
+
+    def select_tags(o):
+        return [tags[s.lower()] for s in o] if o else None
+    included_tags = select_tags(options.match_tags)
+    excluded_tags = select_tags(options.exclude_tags)
 
     if options.list_tags:
         for tag in sorted(tags.keys()):
@@ -211,7 +230,7 @@ def main():
         sys.exit(0)
 
     # Query for Manga metadata
-    manga = get_manga(session=session, number_of_pages=int(options.pages), match_tags=match_tags)
+    manga = get_manga(session=session, number_of_pages=int(options.pages), included_tags=included_tags, excluded_tags=excluded_tags)
 
     # Rank manga by rating descending
     ranked_manga = reversed(sorted(manga, key=lambda m: m.adjusted_rating()))
