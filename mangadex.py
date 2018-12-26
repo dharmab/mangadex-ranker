@@ -2,14 +2,16 @@
 
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
-from typing import Dict, List, Set, ValuesView, Optional
+from typing import Any, Dict, List, Set, ValuesView, Optional
 import argparse
 import bs4.element  # type: ignore
 import enum
+import json
 import math
 import os
 import requests
 import sys
+import yaml
 
 
 class Sorting(enum.Enum):
@@ -45,6 +47,14 @@ class Manga:
 
     def __str__(self):
         return self.title
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'name': self.name,
+            'rating': self.rating,
+            'adjusted_rating': self.adjusted_rating(),
+            'votes': self.votes
+        }
 
 
 def parse_args(tag_names: List[str]) -> argparse.Namespace:
@@ -84,6 +94,13 @@ def parse_args(tag_names: List[str]) -> argparse.Namespace:
         required=False,
         metavar='RATING',
         help='Minimum adjusted rating (0.0 to 10.0). Manga below this rating are not listed'
+    )
+    parser.add_argument(
+        '-f', '--format',
+        default='wide',
+        required=False,
+        choices=['simple', 'wide', 'json', 'yaml'],
+        help='Output format'
     )
 
     return parser.parse_args()
@@ -233,15 +250,28 @@ def main():
     manga = get_manga(session=session, number_of_pages=int(options.pages), included_tags=included_tags, excluded_tags=excluded_tags)
 
     # Rank manga by rating descending
-    ranked_manga = reversed(sorted(manga, key=lambda m: m.adjusted_rating()))
+    ranked_manga = filter(
+        lambda m: m.adjusted_rating() > float(options.minimum_rating),
+        reversed(
+            sorted(
+                manga,
+                key=lambda m: m.adjusted_rating()
+            )
+        )
+    )
 
-    # Print manga
-    for i, manga in enumerate(ranked_manga):
-        # Stop when a manga below minimum rating threshold is encounted
-        if manga.adjusted_rating() < float(options.minimum_rating):
-            break
-        print(f'{i+1:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
-        i += 1
+    # Print results
+    if options.format == 'simple':
+        for manga in ranked_manga:
+            print(f'{manga.name:72}')
+    elif options.format == 'wide':
+        for i, manga in enumerate(ranked_manga):
+            print(f'{i+1:>3}. {manga.name:72} {manga.adjusted_rating():.2f} ({manga.rating:.2f} x {manga.votes})')
+            i += 1
+    elif options.format == 'json':
+        print(json.dumps([m.to_dict() for m in ranked_manga]))
+    elif options.format == 'yaml':
+        print(yaml.dump([m.to_dict() for m in ranked_manga]))
 
 
 if __name__ == '__main__':
