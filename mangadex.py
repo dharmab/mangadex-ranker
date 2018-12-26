@@ -81,7 +81,7 @@ def parse_args(tag_names: List[str]) -> argparse.Namespace:
     return parser.parse_args()
 
 
-def mangadex_search_url() -> str:
+def __mangadex_search_url() -> str:
     return 'https://mangadex.org/search'
 
 
@@ -92,7 +92,7 @@ def get_mangadex_tags(*, session: requests.Session) -> Dict[str, str]:
     :param session: A HTTP session for MangaDex. May be authenticated or unauthenticated.
     :return: A dictionary where keys are lowercase tag names and values are numeric tags.
     """
-    response = session.get(mangadex_search_url())
+    response = session.get(__mangadex_search_url())
     response.raise_for_status()
     html = response.text
     soup = BeautifulSoup(html, 'html.parser')
@@ -123,7 +123,7 @@ def __search_mangadex(*, session: requests.Session, page: int = 1, match_tags: O
     if match_tags:
         params['tags_inc'] = ','.join(sorted([str(t) for t in list(match_tags)]))
 
-    response = session.get(mangadex_search_url(), params=params)
+    response = session.get(__mangadex_search_url(), params=params)
     response.raise_for_status()
     return response.text
 
