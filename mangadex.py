@@ -81,7 +81,7 @@ def parse_args(tag_names: List[str]) -> argparse.Namespace:
         help='Number of search result pages to parse'
     )
     parser.add_argument(
-        '--minimum-rating',
+        '-r', '--minimum-rating',
         default='8.00',
         required=False,
         metavar='RATING',
