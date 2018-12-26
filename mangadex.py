@@ -3,7 +3,6 @@
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
 from typing import Dict, List, Set, ValuesView, Optional
-from urllib.parse import urljoin
 import argparse
 import bs4.element  # type: ignore
 import enum
@@ -176,12 +175,13 @@ def get_manga(*, session, number_of_pages: int, match_tags: Set[str] = None) -> 
 
     return collection.values()
 
+
 def login(username: Optional[str] = None, password: Optional[str] = None):
     session = requests.Session()
     if username and password:
         # cookie is implicitly saved in session
         session.post(
-            urljoin('https://mangadex.org/ajax/actions.ajax.php'),
+            'https://mangadex.org/ajax/actions.ajax.php',
             params={'function': 'login'},
             payload={
                 'login_username': username,
