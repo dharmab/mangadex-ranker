@@ -45,15 +45,21 @@ class Manga:
         adjusted_rating = (self.rating / 2.) + 5 * (1 - math.e ** ((-1 * self.votes) / quantity_constant))
         return round(adjusted_rating, 2)
 
+    def url(self) -> str:
+        return os.path.join('https://mangadex.org' + self.path)
+
     def __str__(self):
         return self.title
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'name': self.name,
+            'url': self.url(),
             'rating': self.rating,
             'adjusted_rating': self.adjusted_rating(),
-            'votes': self.votes
+            'votes': self.votes,
+            'views': self.views,
+            'follows': self.follows,
         }
 
 
