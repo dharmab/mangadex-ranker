@@ -2,7 +2,7 @@
 
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Set, ValuesView, Optional
 from urllib.parse import urljoin
 import argparse
 import bs4.element  # type: ignore
@@ -107,7 +107,7 @@ def get_mangadex_tags(*, session: requests.Session) -> Dict[str, str]:
     return tags
 
 
-def search_mangadex(*, session: requests.Session, page: int = 1, match_tags: Optional[Set[str]] = None) -> str:
+def __search_mangadex(*, session: requests.Session, page: int = 1, match_tags: Optional[Set[str]] = None) -> str:
     """
     Search MangaDex and return the HTML response from the search page.
 
@@ -159,12 +159,25 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
     )
 
 
-def main():
-    # Start a MangaDex HTTP session
-    session = requests.Session()
-    username = os.getenv('MANGADEX_USERNAME', None)
-    password = os.getenv('MANGADEX_PASSWORD', None)
+def get_manga(*, session, number_of_pages: int, match_tags: Set[str] = None) -> ValuesView[Manga]:
+    # Awkwardly, the plural of manga is manga...
+    collection: Dict[str, Manga] = {}
 
+    # Unfortunately queries cannot be multithreaded due to rate limiting
+    for page in range(0, number_of_pages):
+        mangadex_html = __search_mangadex(session=session, page=page, match_tags=match_tags)
+        mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
+        rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
+        for row in rows:
+            manga = __parse_manga_from_html(row)
+            # Exclude https://mangadex.org/title/47/test
+            if manga and manga.name != 'Test':
+                collection[manga.path] = manga
+
+    return collection.values()
+
+def login(username: Optional[str] = None, password: Optional[str] = None):
+    session = requests.Session()
     if username and password:
         # cookie is implicitly saved in session
         session.post(
@@ -175,6 +188,15 @@ def main():
                 'login_password': password
             }
         )
+    return session
+
+
+def main():
+    # Start a MangaDex HTTP session
+    session = login(
+        username=os.getenv('MANGADEX_USERNAME', None),
+        password=os.getenv('MANGADEX_PASSWORD', None)
+    )
 
     # Dynamically query available tags
     tags = get_mangadex_tags(session=session)
@@ -189,24 +211,14 @@ def main():
         sys.exit(0)
 
     # Query for Manga metadata
-    # Awkwardly, the plural of manga is manga...
-    collection: Dict[str, Manga] = {}
+    manga = get_manga(session=session, number_of_pages=int(options.pages), match_tags=match_tags)
 
-    # Unfortunately queries cannot be multithreaded due to rate limiting
-    for page in range(0, int(options.pages)):
-        mangadex_html = search_mangadex(session=session, page=page, match_tags=match_tags)
-        mangadex_soup = BeautifulSoup(mangadex_html, 'html.parser')
-        rows = mangadex_soup.body.find('div', id='content', role='main').find_all('div', class_='border-bottom')
-        for row in rows:
-            manga = __parse_manga_from_html(row)
-            # Exclude https://mangadex.org/title/47/test
-            if manga and manga.name != 'Test':
-                collection[manga.path] = manga
+    # Rank manga by rating descending
+    ranked_manga = reversed(sorted(manga, key=lambda m: m.adjusted_rating()))
 
-    top_manga = reversed(sorted(collection.values(), key=lambda m: m.adjusted_rating()))
-
-    for i, manga in enumerate(top_manga):
-        # Stop when first manga below rating threshold is found
+    # Print manga
+    for i, manga in enumerate(ranked_manga):
+        # Stop when a manga below minimum rating threshold is encounted
         if manga.adjusted_rating() < float(options.minimum_rating):
             break
         try:
