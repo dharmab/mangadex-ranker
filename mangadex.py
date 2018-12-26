@@ -2,7 +2,7 @@
 
 from bs4 import BeautifulSoup  # type: ignore
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set, ValuesView, Optional
+from typing import Any, Dict, List, Set, Iterator, Optional
 import argparse
 import bs4.element  # type: ignore
 import csv
@@ -50,8 +50,8 @@ class Manga:
     def url(self) -> str:
         return os.path.join('https://mangadex.org' + self.path)
 
-    def __str__(self):
-        return self.title
+    def __str__(self) -> str:
+        return self.name
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -155,7 +155,7 @@ def __search_mangadex(*, session: requests.Session, page: int = 1, included_tags
         'p': str(page)  # page meaning "pagination"
     }
 
-    def format_tag_list(c):
+    def format_tag_list(c: Set[str]) -> str:
         return ','.join(sorted(c))
 
     if included_tags:
@@ -206,7 +206,7 @@ def __parse_manga_from_html(row: bs4.element.Tag) -> Optional[Manga]:
     )
 
 
-def get_manga(*, session, number_of_pages: int, included_tags: Set[str] = None, excluded_tags: Set[str] = None) -> ValuesView[Manga]:
+def get_manga(*, session: requests.Session, number_of_pages: int, included_tags: Optional[Set[str]] = None, excluded_tags: Optional[Set[str]] = None) -> Iterator[Manga]:
     # Awkwardly, the plural of manga is manga...
     collection: Dict[str, Manga] = {}
 
@@ -221,10 +221,10 @@ def get_manga(*, session, number_of_pages: int, included_tags: Set[str] = None, 
             if manga and manga.name != 'Test':
                 collection[manga.path] = manga
 
-    return collection.values()
+    yield from collection.values()
 
 
-def login(username: Optional[str] = None, password: Optional[str] = None):
+def login(username: Optional[str] = None, password: Optional[str] = None) -> requests.Session:
     session = requests.Session()
     if username and password:
         # cookie is implicitly saved in session
@@ -239,7 +239,7 @@ def login(username: Optional[str] = None, password: Optional[str] = None):
     return session
 
 
-def main():
+def main() -> None:
     # Start a MangaDex HTTP session
     session = login(
         username=os.getenv('MANGADEX_USERNAME', None),
@@ -250,10 +250,10 @@ def main():
     tags = get_mangadex_tags(session=session)
 
     # Parse CLI options
-    options = parse_args(tag_names=tags.keys())
+    options = parse_args(tag_names=list(tags.keys()))
 
-    def select_tags(o):
-        return [tags[s.lower()] for s in o] if o else None
+    def select_tags(o: Optional[List[str]]) -> Optional[Set[str]]:
+        return {tags[s.lower()] for s in o} if o else None
     included_tags = select_tags(options.match_tags)
     excluded_tags = select_tags(options.exclude_tags)
 
@@ -263,14 +263,14 @@ def main():
         sys.exit(0)
 
     # Query for Manga metadata
-    manga = get_manga(session=session, number_of_pages=int(options.pages), included_tags=included_tags, excluded_tags=excluded_tags)
+    queried_manga = get_manga(session=session, number_of_pages=int(options.pages), included_tags=included_tags, excluded_tags=excluded_tags)
 
     # Rank manga by rating descending
     ranked_manga = filter(
         lambda m: m.adjusted_rating() > float(options.minimum_rating),
         reversed(
             sorted(
-                manga,
+                queried_manga,
                 key=lambda m: m.adjusted_rating()
             )
         )

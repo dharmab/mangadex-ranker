@@ -13,4 +13,4 @@ check-style:
 	  mangadex.py
 
 check-type:
-	mypy mangadex.py
+	mypy --strict mangadex.py
