@@ -6,28 +6,12 @@ from typing import Any, Dict, List, Set, Iterator, Optional
 import argparse
 import bs4.element  # type: ignore
 import csv
-import enum
 import json
 import math
 import os
 import requests
 import sys
 import yaml
-
-
-class Sorting(enum.Enum):
-    TITLE_ASC = 2
-    TITLE_DESC = 3
-    COMMENTS_ASC = 4
-    COMMENTS_DESC = 5
-    RATING_ASC = 6
-    RATING_DESC = 7
-    VIEWS_ASC = 8
-    VIEWS_DESC = 9
-    FOLLLOWS_ASC = 10
-    FOLLLOWS_DESC = 11
-    LAST_UPDATE_ASC = 12
-    LAST_UPDATE_DESC = 13
 
 
 @dataclass
@@ -151,7 +135,7 @@ def __search_mangadex(*, session: requests.Session, page: int = 1, included_tags
     tags will be excluded
     """
     params: Dict[str, str] = {
-        's': str(Sorting.VIEWS_DESC),  # sort method
+        's': '7',  # sort method; 7 is the magic number for sorting by views descending
         'p': str(page)  # page meaning "pagination"
     }
 
