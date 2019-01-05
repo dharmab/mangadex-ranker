@@ -1,5 +1,7 @@
 # MangaDex Ranker
 
+**Update: [MangaDex has fixed their rating algorithm](https://mangadex.org/thread/49073). This script is now unmaintained.**
+
 Script to rank manga on MangaDex. Uses a less naive rating algorithm.
 
 ```bash
